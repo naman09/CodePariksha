@@ -1,15 +1,35 @@
-import 'package:code_pariksha/enums/quiz_answer.dart';
+import 'package:code_pariksha/enums/answer_state.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:code_pariksha/choice_button.dart';
 
 export 'package:code_pariksha/quiz_page.dart';
 
-class QuizState extends ChangeNotifier {
-  QuizAnswer quizAnswerState = QuizAnswer.notAnswered;
+class QuizPageState extends ChangeNotifier {
+  int quizIndex = 0;
+  bool quizDone = false;
 
-  void setQuizAnswer(correct) {
-    quizAnswerState = correct ? QuizAnswer.correct : QuizAnswer.incorrect;
+  final List<Map<String, dynamic>> quizzes = [
+    {
+      'questionText': 'What is H20 ?',
+      'multiChoice': ['Water', 'Air', 'Fire', 'Earth',],
+      'answer': 'Water',
+      'reasonText': 'water is formed of 2 hydrogen atoms bonded to an oxygen atom'
+    },
+    {
+      'questionText': 'What is O2 ??',
+      'multiChoice': ['Water', 'Air', 'Fire', 'Earth',],
+      'answer': 'Air',
+      'reasonText': 'air is formed of 2 oygen atoms'
+    }
+  ];
+
+  void nextQuiz() {
+    if (quizIndex >= quizzes.length - 1) {
+      quizDone = true;
+    } else {
+      quizIndex++;
+    }
     notifyListeners();
   }
 }
@@ -19,68 +39,103 @@ class QuizPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (context) => QuizState(),
-      child: Scaffold(
+    var quizPageState = context.watch<QuizPageState>();
+    return Scaffold(
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Quiz()
+              if (!quizPageState.quizDone)
+                Quiz(
+                  key: Key('quiz_${quizPageState.quizIndex}'),
+                  questionText: quizPageState.quizzes[quizPageState.quizIndex]['questionText'],
+                  multiChoice: quizPageState.quizzes[quizPageState.quizIndex]['multiChoice'],
+                  answer: quizPageState.quizzes[quizPageState.quizIndex]['answer'],
+                  reasonText: quizPageState.quizzes[quizPageState.quizIndex]['reasonText'],
+                ),
+              if (quizPageState.quizDone)
+                const Text('Congo! Quiz complete'),
             ],
           )
         ),
-      ),
     );
   }
 }
 
-class Quiz extends StatelessWidget {
-  Quiz({super.key});
+class Quiz extends StatefulWidget {
+  const Quiz({super.key, required this.questionText, required this.multiChoice, required this.answer, this.reasonText = '',});
 
-  final questionText = 'What is H20 ??';
+  final String questionText;
+  final List<String> multiChoice;
+  final String answer;
+  final String reasonText;
 
-  final multiChoice = [
-    'Water',
-    'Air',
-    'Fire',
-    'Earth',
-  ];
+  @override
+  State<Quiz> createState() => _QuizState();
+}
 
-  final answer = 'Water';
+class _QuizState extends State<Quiz> {
+  AnswerState answerState = AnswerState.notAnsweredYet;
+
+  setAnswerState(correct) {
+    setState(() {
+      answerState = correct ? AnswerState.correct : AnswerState.incorrect;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    var quizState = context.watch<QuizState>();
 
     return Column(
       children: [
-        Question(questionText: questionText),
-        MultipleChoice(multiChoice: multiChoice, answer: answer),
-        QuizAnswerOutput(quizAnswer: quizState.quizAnswerState)
+        Question(questionText: widget.questionText),
+        MultipleChoice(multiChoice: widget.multiChoice, answer: widget.answer, setAnswerState: setAnswerState),
+        QuizAnswerOutput(answerState: answerState, reasonText: widget.reasonText,)
       ],
     );
   }
 }
 
 class QuizAnswerOutput extends StatelessWidget {
-  const QuizAnswerOutput({super.key, required this.quizAnswer});
+  const QuizAnswerOutput({super.key, required this.answerState, this.reasonText = ''});
 
-  final QuizAnswer quizAnswer;
+  final AnswerState answerState;
+  final String reasonText;
 
   @override
   Widget build(BuildContext context) {
+    var quizPageState = context.watch<QuizPageState>();
 
     String answer = 'Your answer is: ';
 
-    if (quizAnswer == QuizAnswer.correct) {
+    if (answerState == AnswerState.correct) {
       answer += 'correct';
-    } else if (quizAnswer == QuizAnswer.incorrect) {
+    } else if (answerState == AnswerState.incorrect) {
       answer += 'incorrect';
     }
 
+    List<Widget> children = <Widget>[
+      Text(answer, style: Theme.of(context).textTheme.bodyLarge),
+    ];
+
+    if (answerState != AnswerState.notAnsweredYet) {
+      children.add(const SizedBox(height: 10));
+      children.add(Text(reasonText, style: Theme.of(context).textTheme.bodyMedium));
+      children.add(const SizedBox(height: 10));
+      children.add(
+        ElevatedButton(
+          onPressed: quizPageState.nextQuiz, 
+          child: const Text('Next'),
+        )
+      );
+    }
+            
+
+
     return Center(
-      child: Text(answer),
+      child: Column(
+        children: children
+      )
     );
   }
 }
@@ -102,10 +157,11 @@ class Question extends StatelessWidget {
 }
 
 class MultipleChoice extends StatefulWidget {
-  const MultipleChoice({super.key, required this.multiChoice, required this.answer});
+  const MultipleChoice({super.key, required this.multiChoice, required this.answer, required this.setAnswerState});
 
   final List<String> multiChoice;
   final String answer;
+  final Function setAnswerState;
 
   @override
   State<MultipleChoice> createState() => _MultipleChoiceState();
@@ -116,7 +172,6 @@ class _MultipleChoiceState extends State<MultipleChoice> {
 
   @override
   Widget build(BuildContext context) {
-    var quizState = context.watch<QuizState>();
 
     return Column(
       children: [
@@ -128,7 +183,7 @@ class _MultipleChoiceState extends State<MultipleChoice> {
               setState(() {
                 selectedOption = choiceLabel;
               });
-              quizState.setQuizAnswer(widget.answer == choiceLabel);
+              widget.setAnswerState(widget.answer == choiceLabel);
             }
           ),
       ],
